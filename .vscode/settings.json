@@ -4,6 +4,7 @@
         "stdatomic.h": "c",
         "lib_infinite_buffer_test.h": "c",
         "stdio.h": "c",
-        "timerfd.h": "c"
+        "timerfd.h": "c",
+        "socket.h": "c"
     }
 }

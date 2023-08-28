@@ -2,10 +2,10 @@
  * @Author       : lvzhipeng
  * @Date         : 2023-08-25 16:08:02
  * @LastEditors  : lvzhipeng
- * @LastEditTime : 2023-08-25 16:38:52
- * @FilePath     : /lib_caeri_infiniteBuffer/lib_infinite_buffer_test_processRecv.c
- * @Description  : 
- * 
+ * @LastEditTime : 2023-08-28 11:25:39
+ * @FilePath     : /lib_infiniteBuffer/lib_infinite_buffer_test_processRecv.c
+ * @Description  :
+ *
  */
 
 #include <sys/socket.h>
@@ -24,41 +24,54 @@
 #include "lib_infinite_buffer.h"
 #include "lib_infinite_buffer_test.h"
 
-
-#define NUM_THREADS 4
+#define NUM_THREADS 1
 
 infiniteBuffer_t buffer;
 
-void *consumer_thread(void *arg) {
-    char data[MAX_DATA_SIZE];
-    while (1) {
-        int32_t bytesRead = lib_infinite_buffer_read(&buffer, data, MAX_DATA_SIZE);
-        if (bytesRead > 0) {
-            // Process the data as needed
-            // For now, just print it
-            printf("Thread %ld: Received %d bytes, msgCnt =[%ld]\n", (long)arg, bytesRead, ((testDataHeader_t *)data)->msgCnt);
-        } else {
-            // Handle error or wait for data
-            usleep(1000);  // Sleep for 1ms
+void *consumer_thread(void *arg)
+{
+    testDataHeader_t header;
+
+    while (1)
+    {
+        int32_t bytesRead = lib_infinite_buffer_read(&buffer, (char *)&header, sizeof(testDataHeader_t));
+        if (bytesRead != sizeof(testDataHeader_t))
+        {
+            //fprintf(stderr, "Failed to read header\n");
+            continue;
+        }
+        else if (header.sync == 0x55AA)
+        {
+            char data[2048];
+            lib_infinite_buffer_read(&buffer, data, header.len);
+            printf("[RECV] threadId=[%ld], msgCnt = %ld, len = %d\n", (long)arg, header.msgCnt, header.len);
+            // printf("data = %s\n", data);
+        }
+        else
+        {
+            //fprintf(stderr, "Invalid header\n");
         }
     }
     return NULL;
 }
 
-int main() {
+int main()
+{
     int server_sock, client_sock;
     struct sockaddr_un server_addr, client_addr;
     socklen_t client_addr_len;
 
     // Initialize the buffer
-    if (lib_infinite_buffer_create(&buffer, MAX_DATA_SIZE * 100) != SUCCESS) {
+    if (lib_infinite_buffer_create(&buffer, MAX_DATA_SIZE * 100) != SUCCESS)
+    {
         perror("Failed to initialize buffer");
         exit(EXIT_FAILURE);
     }
 
     // Create the socket
     server_sock = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (server_sock == -1) {
+    if (server_sock == -1)
+    {
         perror("socket");
         exit(EXIT_FAILURE);
     }
@@ -69,27 +82,32 @@ int main() {
 
     unlink(DOMAIN_SOCK_PATH);
 
-    if (bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
+    if (bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1)
+    {
         perror("bind");
         exit(EXIT_FAILURE);
     }
 
-    if (listen(server_sock, 5) == -1) {
+    if (listen(server_sock, 5) == -1)
+    {
         perror("listen");
         exit(EXIT_FAILURE);
     }
 
     printf("Waiting for connection...\n");
     client_sock = accept(server_sock, (struct sockaddr *)&client_addr, &client_addr_len);
-    if (client_sock == -1) {
+    if (client_sock == -1)
+    {
         perror("accept");
         exit(EXIT_FAILURE);
     }
 
     // Start consumer threads
     pthread_t threads[NUM_THREADS];
-    for (long i = 0; i < NUM_THREADS; i++) {
-        if (pthread_create(&threads[i], NULL, consumer_thread, (void *)i) != 0) {
+    for (long i = 0; i < NUM_THREADS; i++)
+    {
+        if (pthread_create(&threads[i], NULL, consumer_thread, (void *)i) != 0)
+        {
             perror("Failed to create thread");
             exit(EXIT_FAILURE);
         }
@@ -97,15 +115,21 @@ int main() {
 
     // Main loop to receive data and write to buffer
     char recvBuffer[MAX_DATA_SIZE];
-    while (1) {
+    while (1)
+    {
         ssize_t bytesReceived = recv(client_sock, recvBuffer, sizeof(recvBuffer), 0);
-        if (bytesReceived <= 0) {
-            if (bytesReceived == 0 || (bytesReceived == -1 && errno != EAGAIN && errno != EWOULDBLOCK)) {
+        if (bytesReceived <= 0)
+        {
+            if (bytesReceived == 0 || (bytesReceived == -1 && errno != EAGAIN && errno != EWOULDBLOCK))
+            {
                 perror("recv");
                 break;
             }
-        } else {
-            if (lib_infinite_buffer_write(&buffer, recvBuffer, bytesReceived) != SUCCESS) {
+        }
+        else
+        {
+            if (lib_infinite_buffer_write(&buffer, recvBuffer, bytesReceived) != SUCCESS)
+            {
                 fprintf(stderr, "Failed to write to buffer\n");
             }
         }

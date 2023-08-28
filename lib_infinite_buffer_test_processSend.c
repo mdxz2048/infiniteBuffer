@@ -2,8 +2,8 @@
  * @Author       : lvzhipeng
  * @Date         : 2023-08-25 10:13:03
  * @LastEditors  : lvzhipeng
- * @LastEditTime : 2023-08-25 16:04:15
- * @FilePath     : /lib_caeri_infiniteBuffer/lib_infinite_buffer_test_processA.c
+ * @LastEditTime : 2023-08-28 10:06:20
+ * @FilePath     : /lib_infiniteBuffer/lib_infinite_buffer_test_processSend.c
  * @Description  :
  *
  */
@@ -57,8 +57,8 @@ void sendData()
     struct itimerspec timer_value;
     timer_value.it_value.tv_sec = 1;
     timer_value.it_value.tv_nsec = 0;
-    timer_value.it_interval.tv_sec = 1;
-    timer_value.it_interval.tv_nsec = 0;
+    timer_value.it_interval.tv_sec = 0;
+    timer_value.it_interval.tv_nsec = 1 *10000000;
 
     // 启动定时器
     if (timerfd_settime(timer_fd, 0, &timer_value, NULL) == -1)
@@ -81,7 +81,7 @@ void sendData()
         header.sync = SYNC_VALUE;
         header.msgCnt = messageCount++;                                   // Increment the message counter
         header.len = rand() % (MAX_DATA_SIZE - sizeof(testDataHeader_t)); // Generate random length
-
+        printf("[SEND] msgCnt = %ld, len = %d\n", header.msgCnt, header.len);
         memcpy(buf, &header, sizeof(header));
         // Fill the buffer with some data after the header
         for (int i = sizeof(header); i < header.len + sizeof(header); i++)

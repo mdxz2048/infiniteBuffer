@@ -2,18 +2,19 @@
  * @Author       : lvzhipeng
  * @Date         : 2023-08-25 10:20:17
  * @LastEditors  : lvzhipeng
- * @LastEditTime : 2023-08-29 11:18:11
+ * @LastEditTime : 2023-08-29 16:07:25
  * @FilePath     : /lib_infiniteBuffer/src/lib_infinite_buffer.c
  * @Description  :
  *
  */
 #include "lib_infinite_buffer.h"
+#include <stddef.h>
 #include "types.h"
 
 #define PRINTF_READ_INFO 0
 #define PRINTF_WRITE_INFO 0
 
-ERR_CODE_e lib_infinite_buffer_create(infiniteBuffer_t *buffer, u_int32_t bufLen)
+ERR_CODE_e lib_infinite_buffer_create(infiniteBuffer_t *buffer, size_t bufLen)
 {
     if (buffer == NULL)
     {
@@ -71,7 +72,7 @@ ERR_CODE_e lib_infinite_buffer_destroy(infiniteBuffer_t *buffer)
     return SUCCESS;
 }
 
-ERR_CODE_e lib_infinite_buffer_write(infiniteBuffer_t *buffer, const char *data, u_int32_t len)
+ERR_CODE_e lib_infinite_buffer_write(infiniteBuffer_t *buffer, const char *data, size_t len)
 {
     if (!buffer || !data || len == 0)
     {
@@ -83,34 +84,94 @@ ERR_CODE_e lib_infinite_buffer_write(infiniteBuffer_t *buffer, const char *data,
     char *readPtr = (char *)atomic_load(&buffer->readPtr);
     if (writePtr == readPtr)
     {
-        if (atomic_load(&buffer->isFull))
+
+        if (atomic_load(&buffer->isEmpty))
         {
-            debug_printf("[WRITE ERROR] writePtr == readPtr(%p, %p), buffer is full", writePtr, readPtr);
-            return FAILURE;
+            // copy data to buffer
+            ptrdiff_t freeLength = buffer->bufEnd - writePtr;
+            if (freeLength < 0)
+            {
+                debug_printf("[WRITE ERROR] writePtr == readPtr(%p, %p), freeLength < 0(%td)\n", writePtr, readPtr, freeLength);
+                return FAILURE;
+            }
+            // writePtr=readPtr, freeLength>len
+            if ((size_t)freeLength >= len)
+            {
+                atomic_store(&buffer->isWriting, true);
+                memcpy(writePtr, data, len);
+                writePtr += len;
+                atomic_store(&buffer->writePtr, (atomic_uintptr_t)writePtr);
+                atomic_store(&buffer->isFull, false);
+                atomic_store(&buffer->waterMark, (atomic_uintptr_t)buffer->bufEnd);
+                atomic_store(&buffer->isWriting, false);
+
+                if (PRINTF_WRITE_INFO)
+                    debug_printf("[WRITE] newDatalength=[%zu], writePtr=[%p]", len, writePtr);
+                return SUCCESS;
+            }
+            else
+            {
+                ptrdiff_t freeLengthNext = readPtr - buffer->bufStart;
+                if (freeLengthNext < 0)
+                {
+                    debug_printf("[WRITE ERROR] writePtr == readPtr(%p, %p), freeLengthNext < 0(%td)\n", writePtr, readPtr, freeLengthNext);
+                    return FAILURE;
+                }
+                else
+                {
+                    if ((size_t)freeLengthNext > len)
+                    {
+                        atomic_store(&buffer->isWriting, true);
+                        atomic_store(&buffer->waterMark, (atomic_uintptr_t)writePtr);
+                        memcpy(buffer->bufStart, data, len);
+                        writePtr = buffer->bufStart + len;
+                        atomic_store(&buffer->writePtr, (atomic_uintptr_t)writePtr);
+                        atomic_store(&buffer->isFull, false);
+                        atomic_store(&buffer->isWriting, false);
+                        if (PRINTF_WRITE_INFO)
+                            debug_printf("[WRITE] newDatalength=[%zu], writePtr=[%p]", len, writePtr);
+                        return SUCCESS;
+                    }
+                    else if ((size_t)freeLengthNext == len)
+                    {
+                        atomic_store(&buffer->isWriting, true);
+                        atomic_store(&buffer->waterMark, (atomic_uintptr_t)writePtr);
+                        memcpy(buffer->bufStart, data, len);
+                        writePtr = buffer->bufStart + len;
+                        atomic_store(&buffer->writePtr, (atomic_uintptr_t)writePtr);
+                        atomic_store(&buffer->isFull, true);
+                        atomic_store(&buffer->isWriting, false);
+                        if (PRINTF_WRITE_INFO)
+                            debug_printf("[WRITE] newDatalength=[%zu], writePtr=[%p], buffer is full", len, writePtr);
+                        return SUCCESS;
+                    }
+                    else
+                    {
+                        debug_printf("[WRITE ERROR] writePtr == readPtr(%p, %p), freeLengthNext < len(%zu, %zu),Free is not enough space.", writePtr, readPtr, freeLengthNext, len);
+                        return FAILURE;
+                    }
+                }
+            }
         }
         else
         {
-            // copy data to buffer
-            atomic_store(&buffer->isWriting, true);
-            memcpy(writePtr, data, len);
-            writePtr += len;
-            atomic_store(&buffer->writePtr, (atomic_uintptr_t)writePtr);
-            atomic_store(&buffer->isFull, false);
-            atomic_store(&buffer->waterMark, (atomic_uintptr_t)buffer->bufEnd);
-            atomic_store(&buffer->isWriting, false);
-
-            if (PRINTF_WRITE_INFO)
-                debug_printf("[WRITE] newDatalength=[%d], writePtr=[%p]", len, writePtr);
-            return SUCCESS;
+            debug_printf("[WRITE ERROR] writePtr == readPtr(%p, %p), isEmpty = false\n", writePtr, readPtr);
+            return FAILURE;
         }
     }
     else if (writePtr > readPtr)
     {
-        int32_t freeLength = buffer->bufEnd - writePtr;
-        if (freeLength >= len)
+        ptrdiff_t freeLength = buffer->bufEnd - writePtr;
+        if (freeLength < 0)
+        {
+            debug_printf("[WRITE ERROR] writePtr > readPtr(%p,%p), freeLength < 0(%td)\n", writePtr, readPtr, freeLength);
+            return FAILURE;
+        }
+        if ((size_t)freeLength >= len)
         {
             // copy data to buffer
             atomic_store(&buffer->isWriting, true);
+            debug_printf("[WRITE] writePtr > readPtr(%p,%p), freeLength >= len(%zu, %zu)\n", writePtr, readPtr, freeLength, len);
             memcpy(writePtr, data, len);
             writePtr += len;
             atomic_store(&buffer->writePtr, (atomic_uintptr_t)writePtr);
@@ -119,27 +180,33 @@ ERR_CODE_e lib_infinite_buffer_write(infiniteBuffer_t *buffer, const char *data,
             atomic_store(&buffer->isWriting, false);
 
             if (PRINTF_WRITE_INFO)
-                debug_printf("[WRITE] newDatalength=[%d], writePtr=[%p]", len, writePtr);
+                debug_printf("[WRITE] newDatalength=[%zu], writePtr=[%p]", len, writePtr);
             return SUCCESS;
         }
         else
         {
-            int32_t freeLengthNext = readPtr - buffer->bufStart;
-            if (freeLengthNext > len)
+            ptrdiff_t freeLengthNext = readPtr - buffer->bufStart;
+            if (freeLengthNext < 0)
+            {
+                debug_printf("[WRITE ERROR] writePtr > readPtr(%p,%p), freeLengthNext < 0(%td)\n", writePtr, readPtr, freeLengthNext);
+                return FAILURE;
+            }
+
+            if ((size_t)freeLengthNext > len)
             {
                 // copy data to buffer
                 atomic_store(&buffer->isWriting, true);
+                atomic_store(&buffer->waterMark, (atomic_uintptr_t)writePtr);
                 memcpy(buffer->bufStart, data, len);
                 atomic_store(&buffer->isFull, false);
                 writePtr = buffer->bufStart + len;
                 atomic_store(&buffer->writePtr, (atomic_uintptr_t)writePtr);
-                atomic_store(&buffer->waterMark, (atomic_uintptr_t)writePtr);
                 atomic_store(&buffer->isWriting, false);
                 if (PRINTF_WRITE_INFO)
-                    debug_printf("[WRITE] newDatalength=[%d], writePtr=[%p]", len, writePtr);
+                    debug_printf("[WRITE] newDatalength=[%zu], writePtr=[%p]", len, writePtr);
                 return SUCCESS;
             }
-            else if (freeLengthNext == len)
+            else if ((size_t)freeLengthNext == len)
             {
                 // copy data to buffer
                 atomic_store(&buffer->isWriting, true);
@@ -150,20 +217,25 @@ ERR_CODE_e lib_infinite_buffer_write(infiniteBuffer_t *buffer, const char *data,
                 atomic_store(&buffer->isFull, true);
                 atomic_store(&buffer->isWriting, false);
                 if (PRINTF_WRITE_INFO)
-                    debug_printf("[WRITE] newDatalength=[%d], writePtr=[%p], buffer is full", len, writePtr);
+                    debug_printf("[WRITE] newDatalength=[%zu], writePtr=[%p], buffer is full", len, writePtr);
                 return SUCCESS;
             }
             else
             {
-                debug_printf("[WRITE ERROR] writePtr > readPtr(%p,%p), freeLength < len(%d, %d),Free is not enough space.", writePtr, readPtr, freeLength, len);
+                debug_printf("[WRITE ERROR] writePtr > readPtr(%p,%p), freeLength < len(%zu, %zu),Free is not enough space.", writePtr, readPtr, freeLength, len);
                 return FAILURE;
             }
         }
     }
     else if (writePtr < readPtr)
     {
-        int32_t freeLength = readPtr - writePtr;
-        if (freeLength > len)
+        ptrdiff_t freeLength = readPtr - writePtr;
+        if (freeLength < 0)
+        {
+            debug_printf("[WRITE ERROR] writePtr < readPtr(%p, %p), freeLength < 0(%td)\n", writePtr, readPtr, freeLength);
+            return FAILURE;
+        }
+        if ((size_t)freeLength > len)
         {
             // copy data to buffer
             atomic_store(&buffer->isWriting, true);
@@ -174,10 +246,10 @@ ERR_CODE_e lib_infinite_buffer_write(infiniteBuffer_t *buffer, const char *data,
             atomic_store(&buffer->isWriting, false);
 
             if (PRINTF_WRITE_INFO)
-                debug_printf("[WRITE] writePtr < readPtr(%p, %p), freeLength > len(%d, %d)\n", writePtr, readPtr, freeLength, len);
+                debug_printf("[WRITE] writePtr < readPtr(%p, %p), freeLength > len(%zu, %zu)\n", writePtr, readPtr, freeLength, len);
             return SUCCESS;
         }
-        else if (freeLength == len)
+        else if ((size_t)freeLength == len)
         {
             // copy data to buffer
             atomic_store(&buffer->isWriting, true);
@@ -187,18 +259,18 @@ ERR_CODE_e lib_infinite_buffer_write(infiniteBuffer_t *buffer, const char *data,
             atomic_store(&buffer->isFull, true);
             atomic_store(&buffer->isWriting, false);
             if (PRINTF_WRITE_INFO)
-                debug_printf("[WRITE] writePtr < readPtr(%p, %p), freeLength == len(%d, %d),buffer is full\n", writePtr, readPtr, freeLength, len);
+                debug_printf("[WRITE] writePtr < readPtr(%p, %p), freeLength == len(%zu, %zu),buffer is full\n", writePtr, readPtr, freeLength, len);
             return SUCCESS;
         }
         else
         {
-            debug_printf("[WRITE ERROR] writePtr < readPtr(%p, %p), freeLength < len(%d, %d),Free is not enough space.\n", writePtr, readPtr, freeLength, len);
+            debug_printf("[WRITE ERROR] writePtr < readPtr(%p, %p), freeLength < len(%zu, %zu),Free is not enough space.\n", writePtr, readPtr, freeLength, len);
             return FAILURE;
         }
     }
 }
 
-int32_t lib_infinite_buffer_read(infiniteBuffer_t *buffer, char *data, u_int32_t len)
+int32_t lib_infinite_buffer_read(infiniteBuffer_t *buffer, char *data, size_t len)
 {
     if (!buffer || !data || len == 0)
     {
@@ -222,22 +294,28 @@ int32_t lib_infinite_buffer_read(infiniteBuffer_t *buffer, char *data, u_int32_t
     {
         if (atomic_load(&buffer->isFull))
         {
-            int32_t readableLength = waterMark - readPtr;
-            if (readableLength >= len)
+            ptrdiff_t readableLength = waterMark - readPtr;
+            if (readableLength < 0)
+            {
+                debug_printf("[READ ERROR] writePtr == readPtr(%p, %p), readableLength < 0(%td)\n", writePtr, readPtr, readableLength);
+                atomic_store(&buffer->isReading, false);
+                return -1;
+            }
+            if ((size_t)readableLength >= len)
             {
                 memcpy(data, readPtr, len);
                 readPtr += len;
                 atomic_store(&buffer->readPtr, (atomic_uintptr_t)readPtr);
                 atomic_store(&buffer->isEmpty, false);
                 if (PRINTF_READ_INFO)
-                    debug_printf("[READ] readDataLength=[%d], readPtr=[%p]\n", len, readPtr);
+                    debug_printf("[READ] readableLength>=len(%zu, %zu)", readableLength, len);
                 atomic_store(&buffer->isReading, false);
 
                 return len;
             }
             else
             {
-                debug_printf("[READ ERROR] writePtr == readPtr(%p, %p), readableLength < len(%d, %d), wait for the remaining data.\n", writePtr, readPtr, readableLength, len);
+                debug_printf("[READ ERROR] writePtr == readPtr(%p, %p), readableLength < len(%zu, %zu), wait for the remaining data.\n", writePtr, readPtr, readableLength, len);
                 atomic_store(&buffer->isReading, false);
                 return -1;
             }
@@ -253,34 +331,41 @@ int32_t lib_infinite_buffer_read(infiniteBuffer_t *buffer, char *data, u_int32_t
     }
     else if (writePtr > readPtr)
     {
-        int32_t readableLength = writePtr - readPtr;
-        if (readableLength > len)
+        ptrdiff_t readableLength = writePtr - readPtr;
+        if (readableLength < 0)
+        {
+            debug_printf("[READ ERROR] writePtr > readPtr(%p, %p), readableLength < 0(%td)\n", writePtr, readPtr, readableLength);
+            atomic_store(&buffer->isReading, false);
+            return -1;
+        }
+
+        if ((size_t)readableLength > len)
         {
             memcpy(data, readPtr, len);
             readPtr += len;
             atomic_store(&buffer->readPtr, (atomic_uintptr_t)readPtr);
             atomic_store(&buffer->isEmpty, false);
             if (PRINTF_READ_INFO)
-                debug_printf("[READ] readDataLength=[%d], readPtr=[%p]\n", len, readPtr);
+                debug_printf("[READ] readDataLength=[%zu], readPtr=[%p]\n", len, readPtr);
             atomic_store(&buffer->isReading, false);
 
             return len;
         }
-        else if (readableLength == len)
+        else if ((size_t)readableLength == len)
         {
             memcpy(data, readPtr, len);
             readPtr += len;
             atomic_store(&buffer->readPtr, (atomic_uintptr_t)readPtr);
             atomic_store(&buffer->isEmpty, true);
             if (PRINTF_READ_INFO)
-                debug_printf("[READ] readDataLength=[%d], readPtr=[%p]\n", len, readPtr);
+                debug_printf("[READ] readDataLength=[%zu], readPtr=[%p]\n", len, readPtr);
             atomic_store(&buffer->isReading, false);
 
             return len;
         }
         else
         {
-            debug_printf("[READ ERROR] writePtr > readPtr(%p, %p), readableLength < len(%d, %d),wait for the remaining data.\n", writePtr, readPtr, readableLength, len);
+            debug_printf("[READ ERROR] writePtr > readPtr(%p, %p), readableLength < len(%td, %zu),wait for the remaining data.\n", writePtr, readPtr, readableLength, len);
             atomic_store(&buffer->isReading, false);
 
             return -1;
@@ -288,35 +373,45 @@ int32_t lib_infinite_buffer_read(infiniteBuffer_t *buffer, char *data, u_int32_t
     }
     else if (writePtr < readPtr)
     {
-        int32_t readableLength = waterMark - readPtr;
-        if (readableLength > len)
+        ptrdiff_t readableLength = waterMark - readPtr;
+
+        if (readableLength <= 0)
+        {
+            debug_printf("[READ ERROR] writePtr < readPtr(%p, %p), readableLength < 0(%td)\n", writePtr, readPtr, readableLength);
+            readPtr = buffer->bufStart;
+            atomic_store(&buffer->readPtr, (atomic_uintptr_t)readPtr);
+            atomic_store(&buffer->isReading, false);
+            return -1;
+        }
+        if ((size_t)readableLength > len)
         {
             memcpy(data, readPtr, len);
             readPtr += len;
             atomic_store(&buffer->readPtr, (atomic_uintptr_t)readPtr);
             atomic_store(&buffer->isEmpty, false);
-            if (PRINTF_READ_INFO)
-                debug_printf("[READ] readDataLength=[%d], readPtr=[%p]\n", len, readPtr);
             atomic_store(&buffer->isReading, false);
 
             return len;
         }
-        else if (readableLength == len)
+        else if ((size_t)readableLength == len)
         {
-            debug_printf("[READ] writePtr < readPtr(%p, %p), readableLength == len(%d, %d)\n", writePtr, readPtr, readableLength, len);
+            debug_printf("[READ] writePtr < readPtr(%p, %p), readableLength == len(%td, %zu)\n", writePtr, readPtr, readableLength, len);
             memcpy(data, readPtr, len);
             readPtr += len;
             atomic_store(&buffer->readPtr, (atomic_uintptr_t)readPtr);
             atomic_store(&buffer->isEmpty, true);
             if (PRINTF_READ_INFO)
-                debug_printf("[READ] readDataLength=[%d], readPtr=[%p]\n", len, readPtr);
+                debug_printf("[READ] readDataLength=[%td], readPtr=[%p]\n", len, readPtr);
             atomic_store(&buffer->isReading, false);
 
             return len;
         }
-        else
+        else if ((size_t)readableLength < len)
         {
-            debug_printf("[READ ERROR] writePtr < readPtr(%p, %p), readableLength < len(%d, %d),wait for the remaining data.\n", writePtr, readPtr, readableLength, len);
+            debug_printf("[READ ERROR] writePtr < readPtr(%p, %p), readableLength < len(%td, %zu),wait for the remaining data.\n", writePtr, readPtr, readableLength, len);
+            readPtr = buffer->bufStart;
+            atomic_store(&buffer->readPtr, (atomic_uintptr_t)readPtr);
+
             atomic_store(&buffer->isReading, false);
 
             return -1;
@@ -326,7 +421,7 @@ int32_t lib_infinite_buffer_read(infiniteBuffer_t *buffer, char *data, u_int32_t
     return SUCCESS;
 }
 
-ERR_CODE_e lib_infinite_buffer_peek(infiniteBuffer_t *buffer, char *data, u_int32_t len)
+ERR_CODE_e lib_infinite_buffer_peek(infiniteBuffer_t *buffer, char *data, size_t len)
 {
     return SUCCESS;
 }

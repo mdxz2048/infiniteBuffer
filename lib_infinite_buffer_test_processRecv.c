@@ -2,7 +2,7 @@
  * @Author       : lvzhipeng
  * @Date         : 2023-08-25 16:08:02
  * @LastEditors  : lvzhipeng
- * @LastEditTime : 2023-08-29 11:25:19
+ * @LastEditTime : 2023-08-29 16:32:16
  * @FilePath     : /lib_infiniteBuffer/lib_infinite_buffer_test_processRecv.c
  * @Description  :
  *
@@ -24,7 +24,7 @@
 #include "lib_infinite_buffer.h"
 #include "lib_infinite_buffer_test.h"
 
-#define NUM_THREADS 1
+#define NUM_THREADS 4
 
 infiniteBuffer_t buffer;
 
@@ -137,6 +137,9 @@ int main()
             if (lib_infinite_buffer_write(&buffer, recvBuffer, bytesReceived) != SUCCESS)
             {
                 fprintf(stderr, "Failed to write to buffer\n");
+            }else
+            {
+                printf("[APP] write to buffer success.length=[%ld]\n", bytesReceived);
             }
         }
     }

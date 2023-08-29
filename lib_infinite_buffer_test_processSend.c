@@ -2,7 +2,7 @@
  * @Author       : lvzhipeng
  * @Date         : 2023-08-25 10:13:03
  * @LastEditors  : lvzhipeng
- * @LastEditTime : 2023-08-29 08:42:31
+ * @LastEditTime : 2023-08-29 16:32:49
  * @FilePath     : /lib_infiniteBuffer/lib_infinite_buffer_test_processSend.c
  * @Description  :
  *
@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/timerfd.h>
@@ -21,6 +22,8 @@
 
 #define TIMER_INTERVAL_SEC 1  // 定时器间隔，秒
 #define TIMER_INTERVAL_NSEC 0 // 定时器间隔，纳秒
+
+bool isRunning = true;
 
 void sendData()
 {
@@ -58,7 +61,7 @@ void sendData()
     timer_value.it_value.tv_sec = 1;
     timer_value.it_value.tv_nsec = 0;
     timer_value.it_interval.tv_sec = 0;
-    timer_value.it_interval.tv_nsec = 10 *10000000;
+    timer_value.it_interval.tv_nsec = 1 * 1000000;
 
     // 启动定时器
     if (timerfd_settime(timer_fd, 0, &timer_value, NULL) == -1)
@@ -68,7 +71,8 @@ void sendData()
     }
 
     uint64_t expirations;
-    while (1)
+
+    while (isRunning)
     {
         // 等待定时器事件
         if (read(timer_fd, &expirations, sizeof(expirations)) != sizeof(expirations))
@@ -95,14 +99,21 @@ void sendData()
             exit(-1);
         }
     }
-
+    sleep(10);
     close(sock_fd);
     close(timer_fd);
+}
+void handle_sigint(int sig)
+{
+    printf("\nCaught signal %d! Stopping...\n", sig);
+    isRunning = false;
 }
 
 int main()
 {
     printf("Process A\n");
+    // 设置SIGINT信号处理器
+    signal(SIGINT, handle_sigint);
     sendData();
     printf("Process A exit\n");
     return 0;

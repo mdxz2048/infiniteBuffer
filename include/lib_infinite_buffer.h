@@ -36,6 +36,8 @@ ERR_CODE_e lib_infinite_buffer_create(infiniteBuffer_t *buffer, u_int32_t bufLen
 ERR_CODE_e lib_infinite_buffer_destroy(infiniteBuffer_t *buffer);
 ERR_CODE_e lib_infinite_buffer_write(infiniteBuffer_t *buffer, const char *data, u_int32_t len);
 int32_t lib_infinite_buffer_read(infiniteBuffer_t *buffer, char *data, u_int32_t len);
+bool lib_infinite_buffer_isEmpty(infiniteBuffer_t *buffer);
+
 
 
 #endif

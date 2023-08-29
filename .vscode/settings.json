@@ -5,6 +5,8 @@
         "lib_infinite_buffer_test.h": "c",
         "stdio.h": "c",
         "timerfd.h": "c",
-        "socket.h": "c"
+        "socket.h": "c",
+        "pthread.h": "c",
+        "errno.h": "c"
     }
 }

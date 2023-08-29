@@ -2,7 +2,7 @@
  * @Author       : lvzhipeng
  * @Date         : 2023-08-25 16:08:02
  * @LastEditors  : lvzhipeng
- * @LastEditTime : 2023-08-28 11:25:39
+ * @LastEditTime : 2023-08-29 11:25:19
  * @FilePath     : /lib_infiniteBuffer/lib_infinite_buffer_test_processRecv.c
  * @Description  :
  *
@@ -30,6 +30,7 @@ infiniteBuffer_t buffer;
 
 void *consumer_thread(void *arg)
 {
+    int ret_len;
     testDataHeader_t header;
 
     while (1)
@@ -37,19 +38,24 @@ void *consumer_thread(void *arg)
         int32_t bytesRead = lib_infinite_buffer_read(&buffer, (char *)&header, sizeof(testDataHeader_t));
         if (bytesRead != sizeof(testDataHeader_t))
         {
-            //fprintf(stderr, "Failed to read header\n");
+            // fprintf(stderr, "Failed to read header\n");
+            sleep(1);
             continue;
         }
         else if (header.sync == 0x55AA)
         {
             char data[2048];
-            lib_infinite_buffer_read(&buffer, data, header.len);
-            printf("[RECV] threadId=[%ld], msgCnt = %ld, len = %d\n", (long)arg, header.msgCnt, header.len);
+            ret_len = lib_infinite_buffer_read(&buffer, data, header.len);
+            if (ret_len != header.len)
+            {
+                sleep(1);
+            }
+            else
+            {
+                printf("[RECV] threadId=[%ld], msgCnt = %ld, len = %d\n", (long)arg, header.msgCnt, header.len);
+            }
+
             // printf("data = %s\n", data);
-        }
-        else
-        {
-            //fprintf(stderr, "Invalid header\n");
         }
     }
     return NULL;

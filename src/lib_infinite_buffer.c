@@ -2,7 +2,7 @@
  * @Author       : lvzhipeng
  * @Date         : 2023-08-25 10:20:17
  * @LastEditors  : lvzhipeng
- * @LastEditTime : 2023-09-05 13:39:47
+ * @LastEditTime : 2023-09-05 14:01:02
  * @FilePath     : /lib_infiniteBuffer/src/lib_infinite_buffer.c
  * @Description  :
  *
@@ -11,8 +11,8 @@
 #include <stddef.h>
 #include "types.h"
 
-#define PRINTF_READ_INFO 1
-#define PRINTF_WRITE_INFO 1
+#define PRINTF_READ_INFO 0
+#define PRINTF_WRITE_INFO 0
 
 ERR_CODE_e lib_infinite_buffer_create(infiniteBuffer_t *buffer, size_t bufLen)
 {
@@ -395,7 +395,8 @@ int32_t lib_infinite_buffer_read(infiniteBuffer_t *buffer, char *data, size_t le
             atomic_store(&buffer->readPtr, (atomic_uintptr_t)readPtr);
             atomic_store(&buffer->isEmpty, true);
             atomic_store(&buffer->isReading, false);
-            debug_printf("[READ] writePtr > readPtr(%p, %p), readableLength < len(%td, %zu).\n", writePtr, readPtr, readableLength, len);
+            if (PRINTF_READ_INFO)
+                debug_printf("[READ] writePtr > readPtr(%p, %p), readableLength < len(%td, %zu).\n", writePtr, readPtr, readableLength, len);
 
             return (size_t)readableLength;
         }
@@ -423,7 +424,8 @@ int32_t lib_infinite_buffer_read(infiniteBuffer_t *buffer, char *data, size_t le
         }
         else if ((size_t)readableLength == len)
         {
-            debug_printf("[READ] writePtr < readPtr(%p, %p), readableLength == len(%td, %zu)\n", writePtr, readPtr, readableLength, len);
+            if (PRINTF_READ_INFO)
+                debug_printf("[READ] writePtr < readPtr(%p, %p), readableLength == len(%td, %zu)\n", writePtr, readPtr, readableLength, len);
             memcpy(data, readPtr, len);
             readPtr += len;
             atomic_store(&buffer->readPtr, (atomic_uintptr_t)readPtr);
@@ -441,8 +443,8 @@ int32_t lib_infinite_buffer_read(infiniteBuffer_t *buffer, char *data, size_t le
             atomic_store(&buffer->readPtr, (atomic_uintptr_t)readPtr);
             atomic_store(&buffer->isEmpty, false);
             atomic_store(&buffer->isReading, false);
-
-            debug_printf("[READ] writePtr < readPtr(%p, %p), readableLength < len(%td, %zu),wait for the remaining data.\n", writePtr, readPtr, readableLength, len);
+            if (PRINTF_READ_INFO)
+                debug_printf("[READ] writePtr < readPtr(%p, %p), readableLength < len(%td, %zu),wait for the remaining data.\n", writePtr, readPtr, readableLength, len);
             return (size_t)readableLength;
         }
     }
@@ -467,6 +469,7 @@ int32_t lib_infinite_buffer_read_wait(infiniteBuffer_t *buffer, char *data, size
         if (ret == -1)
         {
             isReadSuccess = false;
+            usleep(1);
             continue;
         }
         else
@@ -497,5 +500,43 @@ bool lib_infinite_buffer_isEmpty(infiniteBuffer_t *buffer)
     {
         return false;
     }
+    return SUCCESS;
+}
+
+ERR_CODE_e lib_infinite_buffer_reads_set_exclusive(infiniteBuffer_t *buffer)
+{
+    if (!buffer)
+    {
+        debug_printf("[EXCLUSIVE ERROR] Invalid buffer pointer\n");
+        return FAILURE;
+    }
+
+    // Check if the buffer is already in exclusive mode
+    if (atomic_load(&buffer->isExclusive))
+    {
+        debug_printf("[EXCLUSIVE ERROR] Buffer is already in exclusive mode\n");
+        return FAILURE;
+    }
+
+    atomic_store(&buffer->isExclusive, true);
+    return SUCCESS;
+}
+
+ERR_CODE_e lib_infinite_buffer_reads_unset_exclusive(infiniteBuffer_t *buffer)
+{
+    if (!buffer)
+    {
+        debug_printf("[EXCLUSIVE ERROR] Invalid buffer pointer\n");
+        return FAILURE;
+    }
+
+    // Check if the buffer is not in exclusive mode
+    if (!atomic_load(&buffer->isExclusive))
+    {
+        debug_printf("[EXCLUSIVE ERROR] Buffer is not in exclusive mode\n");
+        return FAILURE;
+    }
+
+    atomic_store(&buffer->isExclusive, false);
     return SUCCESS;
 }

@@ -2,7 +2,7 @@
  * @Author       : lvzhipeng
  * @Date         : 2023-08-25 16:08:02
  * @LastEditors  : lvzhipeng
- * @LastEditTime : 2023-09-05 10:06:02
+ * @LastEditTime : 2023-09-05 17:06:39
  * @FilePath     : /lib_infiniteBuffer/lib_infinite_buffer_test_processRecv.c
  * @Description  :
  *
@@ -30,14 +30,15 @@ infiniteBuffer_t buffer;
 
 void *consumer_thread(void *arg)
 {
+    int ret = 0;
     int ret_len;
     testDataHeader_t header;
-    char data[20480];
+    char data[20480*4];
     u_int32_t remain_length = 0;
     int32_t bytesRead = 0;
+    pthread_t thread_id = pthread_self();
     while (1)
     {
-
         bytesRead = lib_infinite_buffer_read_wait(&buffer, (char *)&header, sizeof(testDataHeader_t));
         printf("[RECV] bytesRead=[%d]\n", bytesRead);
         if (bytesRead <= 0)
@@ -49,13 +50,14 @@ void *consumer_thread(void *arg)
             if (header.sync == 0x55AA)
             {
                 bytesRead = lib_infinite_buffer_read_wait(&buffer, data, header.len);
-                printf("[RECV] msgCnt=[%ld], len=[%d]\n", header.msgCnt, header.len);
+                printf("[RECV] thread_id=[%lu], msgCnt=[%ld], len=[%d]\n", (unsigned long)thread_id, header.msgCnt, header.len);
             }
             else
             {
                 printf("[RECV] sync error\n");
             }
-        }else 
+        }
+        else
         {
             printf("[RECV] header error\n");
         }
@@ -122,7 +124,7 @@ int main()
     }
 
     // Main loop to receive data and write to buffer
-    char recvBuffer[MAX_DATA_SIZE];
+    char recvBuffer[MAX_DATA_SIZE * 5];
     uint64_t total_recv_length = 0;
     while (1)
     {

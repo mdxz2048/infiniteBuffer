@@ -2,7 +2,7 @@
  * @Author       : lvzhipeng
  * @Date         : 2023-08-25 16:08:02
  * @LastEditors  : lvzhipeng
- * @LastEditTime : 2023-08-29 16:32:16
+ * @LastEditTime : 2023-09-05 10:06:02
  * @FilePath     : /lib_infiniteBuffer/lib_infinite_buffer_test_processRecv.c
  * @Description  :
  *
@@ -24,7 +24,7 @@
 #include "lib_infinite_buffer.h"
 #include "lib_infinite_buffer_test.h"
 
-#define NUM_THREADS 4
+#define NUM_THREADS 1
 
 infiniteBuffer_t buffer;
 
@@ -32,30 +32,32 @@ void *consumer_thread(void *arg)
 {
     int ret_len;
     testDataHeader_t header;
-
+    char data[20480];
+    u_int32_t remain_length = 0;
+    int32_t bytesRead = 0;
     while (1)
     {
-        int32_t bytesRead = lib_infinite_buffer_read(&buffer, (char *)&header, sizeof(testDataHeader_t));
-        if (bytesRead != sizeof(testDataHeader_t))
+
+        bytesRead = lib_infinite_buffer_read_wait(&buffer, (char *)&header, sizeof(testDataHeader_t));
+        printf("[RECV] bytesRead=[%d]\n", bytesRead);
+        if (bytesRead <= 0)
         {
-            // fprintf(stderr, "Failed to read header\n");
-            sleep(1);
-            continue;
+            printf("[RECV] buffer is empty\n");
         }
-        else if (header.sync == 0x55AA)
+        else if (bytesRead == sizeof(testDataHeader_t))
         {
-            char data[2048];
-            ret_len = lib_infinite_buffer_read(&buffer, data, header.len);
-            if (ret_len != header.len)
+            if (header.sync == 0x55AA)
             {
-                sleep(1);
+                bytesRead = lib_infinite_buffer_read_wait(&buffer, data, header.len);
+                printf("[RECV] msgCnt=[%ld], len=[%d]\n", header.msgCnt, header.len);
             }
             else
             {
-                printf("[RECV] threadId=[%ld], msgCnt = %ld, len = %d\n", (long)arg, header.msgCnt, header.len);
+                printf("[RECV] sync error\n");
             }
-
-            // printf("data = %s\n", data);
+        }else 
+        {
+            printf("[RECV] header error\n");
         }
     }
     return NULL;
@@ -121,6 +123,7 @@ int main()
 
     // Main loop to receive data and write to buffer
     char recvBuffer[MAX_DATA_SIZE];
+    uint64_t total_recv_length = 0;
     while (1)
     {
         ssize_t bytesReceived = recv(client_sock, recvBuffer, sizeof(recvBuffer), 0);
@@ -134,16 +137,19 @@ int main()
         }
         else
         {
-            if (lib_infinite_buffer_write(&buffer, recvBuffer, bytesReceived) != SUCCESS)
+            total_recv_length += bytesReceived;
+            if (lib_infinite_buffer_write_wait(&buffer, recvBuffer, bytesReceived) != SUCCESS)
             {
+
                 fprintf(stderr, "Failed to write to buffer\n");
-            }else
+            }
+            else
             {
+                // printf("total_recv_length = %ld\n", total_recv_length);
                 printf("[APP] write to buffer success.length=[%ld]\n", bytesReceived);
             }
         }
     }
-
     close(client_sock);
     close(server_sock);
     lib_infinite_buffer_destroy(&buffer);

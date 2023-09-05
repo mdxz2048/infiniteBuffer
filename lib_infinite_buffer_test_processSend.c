@@ -2,7 +2,7 @@
  * @Author       : lvzhipeng
  * @Date         : 2023-08-25 10:13:03
  * @LastEditors  : lvzhipeng
- * @LastEditTime : 2023-08-29 16:32:49
+ * @LastEditTime : 2023-09-05 09:27:55
  * @FilePath     : /lib_infiniteBuffer/lib_infinite_buffer_test_processSend.c
  * @Description  :
  *
@@ -58,10 +58,10 @@ void sendData()
 
     // 设置定时器间隔为1秒
     struct itimerspec timer_value;
-    timer_value.it_value.tv_sec = 1;
+    timer_value.it_value.tv_sec = 2;
     timer_value.it_value.tv_nsec = 0;
     timer_value.it_interval.tv_sec = 0;
-    timer_value.it_interval.tv_nsec = 1 * 1000000;
+    timer_value.it_interval.tv_nsec = 10 * 1000000;
 
     // 启动定时器
     if (timerfd_settime(timer_fd, 0, &timer_value, NULL) == -1)
@@ -71,7 +71,7 @@ void sendData()
     }
 
     uint64_t expirations;
-
+    uint64_t total_send_length = 0;
     while (isRunning)
     {
         // 等待定时器事件
@@ -98,7 +98,9 @@ void sendData()
             perror("write error");
             exit(-1);
         }
+        total_send_length += header.len + sizeof(header);
     }
+    printf("total_send_length = %ld\n", total_send_length);
     sleep(10);
     close(sock_fd);
     close(timer_fd);

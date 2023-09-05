@@ -10,7 +10,7 @@ extern "C"
 
 #define DOMAIN_SOCK_PATH "/tmp/domain_sock_path"
 #define SYNC_VALUE 0x55AA
-#define MAX_DATA_SIZE 1024
+#define MAX_DATA_SIZE 20480
 
 typedef struct {
     u_int32_t sync; // 0x55AA

@@ -75,7 +75,7 @@ LDFLAGS += $(foreach lib, $(LIBRARY_PATH), -L$(lib))
 ## get all librarys
 LDFLAGS += $(foreach lib, $(LIBS), -l$(lib))
 CFLAGS += 	-g \
-			-pthread
+			-pthread -pg
 #将以下变量导出到子shell中，本次相当于导出到子目录下的makefile中
 export CC BIN OBJS_DIR BIN_DIR ROOT_DIR LDFLAGS CFLAGS TARGET_MDXZLIB_PATH TARGET_LIB_NAME OBJS_DIR_DEMO
 #注意这里的顺序，需要先执行SUBDIRS最后才能是DEBUG

@@ -2,8 +2,8 @@
  * @Author       : lvzhipeng
  * @Date         : 2023-08-25 10:20:17
  * @LastEditors  : lvzhipeng
- * @LastEditTime : 2023-09-05 14:01:02
- * @FilePath     : /lib_infiniteBuffer/src/lib_infinite_buffer.c
+ * @LastEditTime : 2023-09-22 16:12:31
+ * @FilePath     : /infiniteBuffer/src/lib_infinite_buffer.c
  * @Description  :
  *
  */
@@ -171,7 +171,8 @@ ERR_CODE_e lib_infinite_buffer_write(infiniteBuffer_t *buffer, const char *data,
         {
             // copy data to buffer
             atomic_store(&buffer->isWriting, true);
-            debug_printf("[WRITE] writePtr > readPtr(%p,%p), freeLength >= len(%zu, %zu)\n", writePtr, readPtr, freeLength, len);
+            if (PRINTF_WRITE_INFO)
+                debug_printf("[WRITE] writePtr > readPtr(%p,%p), freeLength >= len(%zu, %zu)\n", writePtr, readPtr, freeLength, len);
             memcpy(writePtr, data, len);
             writePtr += len;
             atomic_store(&buffer->writePtr, (atomic_uintptr_t)writePtr);
@@ -349,7 +350,7 @@ int32_t lib_infinite_buffer_read(infiniteBuffer_t *buffer, char *data, size_t le
         else
         {
             atomic_store(&buffer->isEmpty, true);
-            debug_printf("[READ ERROR] writePtr == readPtr(%p, %p), set isEmpty = true\n", writePtr, readPtr);
+            //debug_printf("[READ ERROR] writePtr == readPtr(%p, %p), set isEmpty = true\n", writePtr, readPtr);
             atomic_store(&buffer->isReading, false);
 
             return -1;

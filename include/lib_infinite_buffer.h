@@ -10,25 +10,24 @@
 #include <stdatomic.h>
 #include "types.h"
 
+#define CACHE_LINE_SIZE 64
 
-/**
- * @brief RTK平台注册信息
- */
 typedef struct
 {
     u_int32_t bufLen;               //buffer length
     char *bufStart;                 //buffer start address
     char *bufEnd;                   //buffer end address
 
-    atomic_bool isFull;             //is full, update by write thread
-    atomic_bool isWriting;          //is writing, update by write thread
-    atomic_uintptr_t writePtr;      //write pointer, 
-    atomic_uintptr_t waterMark;     //water mark
+    bool isFull;             //is full, update by write thread
+    char *writePtr;      //write pointer, 
+    char *waterMark;     //water mark
+    char _pad1[CACHE_LINE_SIZE - sizeof(u_int32_t) - 5 * sizeof(char*) - sizeof(bool)]; // padding to avoid false sharing
 
     atomic_bool isEmpty;            //is empty, update by read thread
     atomic_bool isReading;          //is reading, 
     atomic_uintptr_t readPtr;       //read pointer
     atomic_bool isExclusive;        //is exclusive, update by read thread
+    char _pad2[CACHE_LINE_SIZE - 4 * sizeof(atomic_bool) - sizeof(atomic_uintptr_t)]; // padding to avoid false sharing
 
 } infiniteBuffer_t;
 

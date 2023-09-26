@@ -2,7 +2,7 @@
  * @Author       : lvzhipeng
  * @Date         : 2023-08-25 10:13:03
  * @LastEditors  : lvzhipeng
- * @LastEditTime : 2023-09-19 09:48:11
+ * @LastEditTime : 2023-09-26 08:30:24
  * @FilePath     : /infiniteBuffer/lib_infinite_buffer_test_processSend.c
  * @Description  :
  *
@@ -61,7 +61,7 @@ void sendData()
     timer_value.it_value.tv_sec = 2;
     timer_value.it_value.tv_nsec = 0;
     timer_value.it_interval.tv_sec = 0;
-    timer_value.it_interval.tv_nsec = 1 * 10000;
+    timer_value.it_interval.tv_nsec = 1 * 1000;
 
     // 启动定时器
     if (timerfd_settime(timer_fd, 0, &timer_value, NULL) == -1)

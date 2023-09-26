@@ -2,8 +2,8 @@
  * @Author       : lvzhipeng
  * @Date         : 2023-08-25 16:08:02
  * @LastEditors  : lvzhipeng
- * @LastEditTime : 2023-09-05 17:06:39
- * @FilePath     : /lib_infiniteBuffer/lib_infinite_buffer_test_processRecv.c
+ * @LastEditTime : 2023-09-26 08:37:39
+ * @FilePath     : /infiniteBuffer/lib_infinite_buffer_test_processRecv.c
  * @Description  :
  *
  */
@@ -24,7 +24,7 @@
 #include "lib_infinite_buffer.h"
 #include "lib_infinite_buffer_test.h"
 
-#define NUM_THREADS 1
+#define NUM_THREADS 2
 
 infiniteBuffer_t buffer;
 
@@ -33,7 +33,7 @@ void *consumer_thread(void *arg)
     int ret = 0;
     int ret_len;
     testDataHeader_t header;
-    char data[20480*4];
+    char data[20480 * 4];
     u_int32_t remain_length = 0;
     int32_t bytesRead = 0;
     pthread_t thread_id = pthread_self();
@@ -44,6 +44,7 @@ void *consumer_thread(void *arg)
         if (bytesRead <= 0)
         {
             printf("[RECV] buffer is empty\n");
+            usleep(10);
         }
         else if (bytesRead == sizeof(testDataHeader_t))
         {

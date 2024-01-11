@@ -2,7 +2,7 @@
  * @Author       : lvzhipeng
  * @Date         : 2023-08-25 16:08:02
  * @LastEditors  : lvzhipeng
- * @LastEditTime : 2024-01-11 11:22:35
+ * @LastEditTime : 2024-01-11 14:02:17
  * @FilePath     : /infiniteBuffer/lib_infinite_buffer_test_processRecv.c
  * @Description  :
  *
@@ -33,6 +33,8 @@
 infiniteBuffer_t buffer;
 int receive_thread_count = 0;
 uint64_t TotalMessagesRecv = 0;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+
 void *consumer_thread(void *arg)
 {
     int ret = 0;
@@ -77,7 +79,9 @@ void *consumer_thread(void *arg)
             printf("[RECV] header error\n");
         }
     }
+    pthread_mutex_lock(&lock);
     TotalMessagesRecv += thread_recv_total_cnt;
+    pthread_mutex_unlock(&lock);
     return NULL;
 }
 
@@ -188,7 +192,13 @@ int main(int argc, char *argv[])
     lib_infinite_buffer_destroy(&buffer);
 
     // 打印结果
-    printf("[PYTHON_RESULT_FLAG]  TotalMessagesRecv=%ld\n", TotalMessagesRecv);
+    // Wait for all consumer threads to finish
+    for (long i = 0; i < receive_thread_count; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    // Print the total number of messages received after all threads have completed
+    fprintf(stderr, "[PYTHON_RESULT_FLAG]  TotalMessagesRecv=%ld\n", TotalMessagesRecv);
 
     return 0;
 }

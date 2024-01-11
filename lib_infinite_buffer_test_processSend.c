@@ -2,7 +2,7 @@
  * @Author       : lvzhipeng
  * @Date         : 2023-08-25 10:13:03
  * @LastEditors  : lvzhipeng
- * @LastEditTime : 2024-01-11 11:09:26
+ * @LastEditTime : 2024-01-11 13:48:41
  * @FilePath     : /infiniteBuffer/lib_infinite_buffer_test_processSend.c
  * @Description  :
  *
@@ -77,7 +77,7 @@ void sendData(int message_delay_us, int total_messages)
         }
     }
 
-    sleep(10);
+    sleep(5);
     close(sock_fd);
 }
 void handle_sigint(int sig)
@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
     signal(SIGINT, handle_sigint);
     sendData(message_delay_us, total_messages);
     printf("Process send exit\n");
-    printf("[PYTHON_RESULT_FLAG]  TotalMessagesSent=%d\n", total_messages);
+    fprintf(stderr, "[PYTHON_RESULT_FLAG]  TotalMessagesSent=%d\n", total_messages);
 
     return 0;
 }

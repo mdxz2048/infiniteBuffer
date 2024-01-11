@@ -1,4 +1,4 @@
-[English Version](README_EN.md) | 中文说明
+[中文版本] | [English Description](README_EN.md) 
 
 # Infinite Buffer Library
 

@@ -36,14 +36,7 @@ ERR_CODE_e lib_infinite_buffer_destroy(infiniteBuffer_t *buffer);
 ERR_CODE_e lib_infinite_buffer_write(infiniteBuffer_t *buffer, const char *data, size_t len);
 ERR_CODE_e lib_infinite_buffer_write_wait(infiniteBuffer_t *buffer, const char *data, size_t len);
 int32_t lib_infinite_buffer_read(infiniteBuffer_t *buffer, char *data, size_t len);
-int32_t lib_infinite_buffer_read_wait(infiniteBuffer_t *buffer, char *data, size_t len);
 bool lib_infinite_buffer_isEmpty(infiniteBuffer_t *buffer);
-
-// multi-threads read need to set exclusive, and unset exclusive after read
-ERR_CODE_e lib_infinite_buffer_reads_set_exclusive(infiniteBuffer_t *buffer);
-ERR_CODE_e lib_infinite_buffer_reads_unset_exclusive(infiniteBuffer_t *buffer);
-
-
 
 
 #endif

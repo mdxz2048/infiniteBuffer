@@ -2,7 +2,7 @@
  * @Author       : lvzhipeng
  * @Date         : 2023-08-25 10:20:17
  * @LastEditors  : lvzhipeng
- * @LastEditTime : 2023-09-26 08:37:25
+ * @LastEditTime : 2024-01-11 09:01:16
  * @FilePath     : /infiniteBuffer/src/lib_infinite_buffer.c
  * @Description  :
  *
@@ -438,37 +438,6 @@ int32_t lib_infinite_buffer_read(infiniteBuffer_t *buffer, char *data, size_t le
     return SUCCESS;
 }
 
-int32_t lib_infinite_buffer_read_wait(infiniteBuffer_t *buffer, char *data, size_t len)
-{
-    ERR_CODE_e ret;
-    bool isReadSuccess = false;
-    size_t readBytesTotal = 0;
-    size_t expectedReadBytes = len;
-    if (!buffer || !data || len == 0)
-    {
-        debug_printf("[READ ERROR] Invalid parameters\n");
-        return -1;
-    }
-    while (!isReadSuccess)
-    {
-        ret = lib_infinite_buffer_read(buffer, data, expectedReadBytes - readBytesTotal);
-        if (ret == -1)
-        {
-            isReadSuccess = false;
-            return -1;
-        }
-        else
-        {
-            readBytesTotal += ret;
-            if (readBytesTotal == expectedReadBytes)
-            {
-                isReadSuccess = true;
-                break;
-            }
-        }
-    }
-    return len;
-}
 
 ERR_CODE_e lib_infinite_buffer_peek(infiniteBuffer_t *buffer, char *data, size_t len)
 {

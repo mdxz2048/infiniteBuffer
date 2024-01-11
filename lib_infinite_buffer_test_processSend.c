@@ -2,7 +2,7 @@
  * @Author       : lvzhipeng
  * @Date         : 2023-08-25 10:13:03
  * @LastEditors  : lvzhipeng
- * @LastEditTime : 2023-09-26 08:30:24
+ * @LastEditTime : 2024-01-11 11:09:26
  * @FilePath     : /infiniteBuffer/lib_infinite_buffer_test_processSend.c
  * @Description  :
  *
@@ -25,19 +25,21 @@
 
 bool isRunning = true;
 
-void sendData()
+void sendData(int message_delay_us, int total_messages)
 {
     struct sockaddr_un addr;
     char buf[MAX_DATA_SIZE];
-    int sock_fd, timer_fd;
-    u_int64_t messageCount = 0; // Message counter
+    int sock_fd;
+    struct timespec ts;
+
+    ts.tv_sec = message_delay_us / 1000000;
+    ts.tv_nsec = (message_delay_us % 1000000) * 1000;
 
     if ((sock_fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
     {
         perror("socket error");
         exit(-1);
     }
-
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, DOMAIN_SOCK_PATH, sizeof(addr.sun_path) - 1);
@@ -48,42 +50,11 @@ void sendData()
         exit(-1);
     }
 
-    // 创建timerfd
-    timer_fd = timerfd_create(CLOCK_MONOTONIC, 0);
-    if (timer_fd == -1)
+    for (int i = 0; i < total_messages && isRunning; i++)
     {
-        perror("timerfd_create error");
-        exit(-1);
-    }
-
-    // 设置定时器间隔为1秒
-    struct itimerspec timer_value;
-    timer_value.it_value.tv_sec = 2;
-    timer_value.it_value.tv_nsec = 0;
-    timer_value.it_interval.tv_sec = 0;
-    timer_value.it_interval.tv_nsec = 1 * 1000;
-
-    // 启动定时器
-    if (timerfd_settime(timer_fd, 0, &timer_value, NULL) == -1)
-    {
-        perror("timerfd_settime error");
-        exit(-1);
-    }
-
-    uint64_t expirations;
-    uint64_t total_send_length = 0;
-    while (isRunning)
-    {
-        // 等待定时器事件
-        if (read(timer_fd, &expirations, sizeof(expirations)) != sizeof(expirations))
-        {
-            perror("read timer_fd error");
-            exit(-1);
-        }
-
         testDataHeader_t header;
         header.sync = SYNC_VALUE;
-        header.msgCnt = messageCount++;                                   // Increment the message counter
+        header.msgCnt = i;                                                // 使用循环的迭代次数作为消息计数
         header.len = rand() % (MAX_DATA_SIZE - sizeof(testDataHeader_t)); // Generate random length
         printf("[SEND] msgCnt = %ld, len = %d\n", header.msgCnt, header.len);
         memcpy(buf, &header, sizeof(header));
@@ -98,12 +69,16 @@ void sendData()
             perror("write error");
             exit(-1);
         }
-        total_send_length += header.len + sizeof(header);
+
+        if (nanosleep(&ts, NULL) < 0)
+        { // 在每个消息之间等待
+            perror("nanosleep error");
+            break;
+        }
     }
-    printf("total_send_length = %ld\n", total_send_length);
+
     sleep(10);
     close(sock_fd);
-    close(timer_fd);
 }
 void handle_sigint(int sig)
 {
@@ -111,12 +86,35 @@ void handle_sigint(int sig)
     isRunning = false;
 }
 
-int main()
+int main(int argc, char *argv[])
 {
-    printf("Process A\n");
+    int message_delay_us = 0;
+    int total_messages = 0;
+    // 解析命令行参数
+    for (int i = 1; i < argc; i++)
+    {
+        if (strcmp(argv[i], "--message_delay_us") == 0 && i + 1 < argc)
+        {
+            message_delay_us = atoi(argv[i + 1]);
+            i++; // 跳过下一个参数（已读取的值）
+        }
+        else if (strcmp(argv[i], "--total_messages") == 0 && i + 1 < argc)
+        {
+            total_messages = atoi(argv[i + 1]);
+            i++; // 跳过下一个参数（已读取的值）
+        }
+        else
+        {
+            fprintf(stderr, "unknown : %s\n", argv[i]);
+            return 1;
+        }
+    }
+    printf("Process send start\n");
     // 设置SIGINT信号处理器
     signal(SIGINT, handle_sigint);
-    sendData();
-    printf("Process A exit\n");
+    sendData(message_delay_us, total_messages);
+    printf("Process send exit\n");
+    printf("[PYTHON_RESULT_FLAG]  TotalMessagesSent=%d\n", total_messages);
+
     return 0;
 }

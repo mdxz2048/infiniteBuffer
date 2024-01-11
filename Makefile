@@ -4,6 +4,10 @@ OUTFILE=debug
 OUTBIN=bin
 #连接目标文件夹
 OBJFILE=obj
+#demo目标文件夹
+OBJS_DIR_DEMO=obj_demo
+#编译出库的名字和路径
+TARGET_MDXZLIB_PATH = $(ROOT_DIR)/lib
 #判断输出文件夹是否存在，如果不存在自动填充
 ifneq ($(OUTFILE), $(wildcard $(OUTFILE)))
 $(shell mkdir -p $(OUTFILE) $(OUTFILE)/$(OUTBIN) $(OUTFILE)/$(OBJFILE))
@@ -20,6 +24,14 @@ endif
 #判断连接目标文件夹是否存在
 ifneq ($(OUTFILE)/$(OBJFILE), $(wildcard $(OUTFILE)/$(OBJFILE)))
 $(shell mkdir -p $(OUTFILE)/$(OBJFILE))
+endif
+#判断demo目标文件夹是否存在
+ifneq ($(OUTFILE)/$(OBJS_DIR_DEMO), $(wildcard $(OUTFILE)/$(OBJS_DIR_DEMO)))
+$(shell mkdir -p $(OUTFILE)/$(OBJS_DIR_DEMO))
+endif
+#判断TARGET_MDXZLIB_PATH目标文件夹是否存在
+ifneq ($(TARGET_MDXZLIB_PATH), $(wildcard $(TARGET_MDXZLIB_PATH)))
+$(shell mkdir -p $(TARGET_MDXZLIB_PATH))
 endif
 
 
@@ -46,8 +58,7 @@ OBJS_DIR_DEMO=debug/obj_demo
 #bin文件所在的目录
 BIN_DIR=debug/bin
 #编译出库的名字和路径
-TARGET_LIB_NAME := libinfiniteBuffer.so
-TARGET_MDXZLIB_PATH := $(ROOT_DIR)/lib
+TARGET_LIB_NAME = libinfiniteBuffer.so
 
 #获取当前目录下的c文件集，放在变量CUR_SOURCE中
 CUR_SOURCE=${wildcard *.c}
@@ -95,3 +106,6 @@ clean:
 	@$(RM) $(BIN_DIR)/*
 	@$(RM) $(OBJS_DIR_DEMO)/*
 	@$(RM) $(TARGET_MDXZLIB_PATH)/$(TARGET_LIB_NAME)
+install:
+	sudo cp $(TARGET_MDXZLIB_PATH)/$(TARGET_LIB_NAME) /usr/local/lib
+	sudo ldconfig

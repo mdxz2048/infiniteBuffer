@@ -27,6 +27,7 @@ typedef struct
     atomic_bool isReading;          //is reading, 
     atomic_uintptr_t readPtr;       //read pointer
     atomic_bool isExclusive;        //is exclusive, update by read thread
+    pthread_t   exclusiveOwner;    //exclusive owner, update by read thread
     char _pad2[CACHE_LINE_SIZE - 4 * sizeof(atomic_bool) - sizeof(atomic_uintptr_t)]; // padding to avoid false sharing
 
 } infiniteBuffer_t;
@@ -36,7 +37,11 @@ ERR_CODE_e lib_infinite_buffer_destroy(infiniteBuffer_t *buffer);
 ERR_CODE_e lib_infinite_buffer_write(infiniteBuffer_t *buffer, const char *data, size_t len);
 ERR_CODE_e lib_infinite_buffer_write_wait(infiniteBuffer_t *buffer, const char *data, size_t len);
 int32_t lib_infinite_buffer_read(infiniteBuffer_t *buffer, char *data, size_t len);
+int32_t lib_infinite_buffer_advance_readptr(infiniteBuffer_t *buffer, size_t len);
 bool lib_infinite_buffer_isEmpty(infiniteBuffer_t *buffer);
+bool lib_infinite_buffer_isFull(infiniteBuffer_t *buffer);
+ERR_CODE_e lib_infinite_buffer_reads_set_exclusive(infiniteBuffer_t *buffer);
+ERR_CODE_e lib_infinite_buffer_reads_unset_exclusive(infiniteBuffer_t *buffer);
 
 
 #endif
